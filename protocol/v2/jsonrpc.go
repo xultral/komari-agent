@@ -2,23 +2,19 @@ package v2
 
 import (
 	"encoding/json"
-	"time"
 
-	v1 "github.com/komari-monitor/komari-agent/protocol/v1"
+	v1 "github.com/xultral/komari-agent/protocol/v1"
 )
 
 const (
-	Version               = "2.0"
-	MethodAgentReport     = "agent.report"
-	MethodAgentBasicInfo  = "agent.basicInfo"
-	MethodAgentPingResult = "agent.pingResult"
-	MethodAgentTaskResult = "agent.taskResult"
-	MethodAgentExec       = "agent.exec"
-	MethodAgentPing       = "agent.ping"
-	MethodAgentMessage    = "agent.message"
-	MethodAgentEvent      = "agent.event"
-	MethodAgentTerminal   = "agent.terminal.request"
-	MethodAgentPull       = "agent.pull"
+	Version              = "2.0"
+	MethodAgentReport    = "agent.report"
+	MethodAgentBasicInfo = "agent.basicInfo"
+	MethodAgentExec      = "agent.exec"
+	MethodAgentPing      = "agent.ping"
+	MethodAgentMessage   = "agent.message"
+	MethodAgentEvent     = "agent.event"
+	MethodAgentTerminal  = "agent.terminal.request"
 )
 
 type Request struct {
@@ -81,19 +77,6 @@ func BuildReportRequest(id interface{}, report v1.ReportPayload, ackEventIDs []s
 
 func BuildBasicInfoPayload(info map[string]interface{}) []byte {
 	return NewNotification(MethodAgentBasicInfo, map[string]interface{}{"info": info})
-}
-
-func BuildPingResultPayload(taskID uint, pingType string, value int, finishedAt time.Time) interface{} {
-	return Request{
-		JSONRPC: Version,
-		Method:  MethodAgentPingResult,
-		Params: map[string]interface{}{
-			"task_id":     taskID,
-			"ping_type":   pingType,
-			"value":       value,
-			"finished_at": finishedAt.Format(time.RFC3339Nano),
-		},
-	}
 }
 
 func BindParams(raw interface{}, target interface{}) error {

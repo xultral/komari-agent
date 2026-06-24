@@ -12,6 +12,8 @@ $archList = @('amd64', 'arm64', '386', 'arm')
 # Ensure build directory
 $buildDir = Join-Path -Path (Get-Location) -ChildPath 'build'
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+$goCacheDir = Join-Path -Path (Get-Location) -ChildPath '.gocache'
+New-Item -ItemType Directory -Force -Path $goCacheDir | Out-Null
 
 # Detect version from git tags or fallback to dev
 $version = (git describe --tags --abbrev=0 2>$null)
@@ -44,8 +46,9 @@ foreach ($goos in $osList) {
         $env:GOOS = $goos
         $env:GOARCH = $goarch
         $env:CGO_ENABLED = '0'
+        $env:GOCACHE = $goCacheDir
 
-        & go build -trimpath -ldflags "-X github.com/komari-monitor/komari-agent/update.CurrentVersion=$version" -o "$outPath"
+        & go build -buildvcs=false -trimpath -ldflags "-X github.com/xultral/komari-agent/update.CurrentVersion=$version" -o "$outPath"
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Failed to build for $goos/$goarch" -ForegroundColor $Red
             $failedBuilds += "$goos/$goarch"
@@ -58,6 +61,7 @@ foreach ($goos in $osList) {
         Remove-Item Env:GOOS -ErrorAction SilentlyContinue
         Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
         Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
+        Remove-Item Env:GOCACHE -ErrorAction SilentlyContinue
     }
 }
 

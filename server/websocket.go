@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -15,12 +14,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/komari-monitor/komari-agent/dnsresolver"
-	"github.com/komari-monitor/komari-agent/monitoring"
-	v2 "github.com/komari-monitor/komari-agent/protocol/v2"
-	"github.com/komari-monitor/komari-agent/terminal"
-	"github.com/komari-monitor/komari-agent/utils"
-	"github.com/komari-monitor/komari-agent/ws"
+	"github.com/xultral/komari-agent/dnsresolver"
+	"github.com/xultral/komari-agent/monitoring"
+	"github.com/xultral/komari-agent/protocol/transport"
+	v2 "github.com/xultral/komari-agent/protocol/v2"
+	"github.com/xultral/komari-agent/utils"
+	"github.com/xultral/komari-agent/ws"
 )
 
 var (
@@ -173,11 +172,6 @@ func buildWebSocketEndpoint(protocolVersion int) string {
 
 func runPostFallback(websocketEndpoint string, interval float64) (*ws.SafeConn, error) {
 	log.Println("Entering v2 POST fallback mode")
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	pullErr := make(chan error, 1)
-	go runV2PullLoop(ctx, pullErr)
-
 	reportTicker := time.NewTicker(time.Duration(interval * float64(time.Second)))
 	defer reportTicker.Stop()
 	reconnectTicker := time.NewTicker(time.Duration(flags.ReconnectInterval) * time.Second)
@@ -207,61 +201,21 @@ func runPostFallback(websocketEndpoint string, interval float64) (*ws.SafeConn, 
 				return nil, err
 			}
 			log.Println("POST fallback WebSocket recovery failed:", err)
-		case err := <-pullErr:
-			return nil, err
 		}
-	}
-}
-
-func runV2PullLoop(ctx context.Context, errCh chan<- error) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		pullID := fmt.Sprintf("pull-%d", time.Now().UnixNano())
-		ackIDs := snapshotV2AckEventIDs()
-		payload := v2.NewRequest(pullID, v2.MethodAgentPull, map[string]interface{}{
-			"capabilities":  []string{"exec", "ping", "message", "event", "terminal"},
-			"ack_event_ids": ackIDs,
-		})
-		resp, err := postV2RequestContext(ctx, payload)
-		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			if shouldFallbackToV1(2, err) {
-				select {
-				case errCh <- err:
-				default:
-				}
-				return
-			}
-			log.Println("Failed to POST v2 pull:", err)
-			time.Sleep(time.Duration(flags.ReconnectInterval) * time.Second)
-			continue
-		}
-		clearV2AckEventIDs(ackIDs)
-		processV2ResponseEvents(resp)
 	}
 }
 
 func postV2Request(payload []byte) (*v2.Response, error) {
-	return postV2RequestContext(context.Background(), payload)
-}
-
-func postV2RequestContext(ctx context.Context, payload []byte) (*v2.Response, error) {
 	endpoint := strings.TrimSuffix(flags.Endpoint, "/") + "/api/clients/v2/rpc?token=" + flags.Token
 	body := payload
 	compressed := false
 	if !flags.DisableCompression {
-		if gz, err := gzipBytes(payload); err == nil {
+		if gz, err := transport.GzipBytes(payload); err == nil {
 			body = gz
 			compressed = true
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -407,15 +361,15 @@ func handleWebSocketMessages(conn *ws.SafeConn, protocolVersion int, done chan<-
 		}
 
 		if message.Message == "terminal" || message.TerminalId != "" {
-			go establishTerminalConnection(flags.Token, message.TerminalId, flags.Endpoint)
+			log.Println("Ignoring terminal request in monitoring-only mode")
 			continue
 		}
 		if message.Message == "exec" {
-			go NewTask(message.ExecTaskID, message.ExecCommand)
+			log.Println("Ignoring remote exec request in monitoring-only mode")
 			continue
 		}
 		if message.Message == "ping" || message.PingTaskID != 0 || message.PingType != "" || message.PingTarget != "" {
-			go NewPingTask(conn, protocolVersion, message.PingTaskID, message.PingType, message.PingTarget)
+			log.Println("Ignoring remote ping task in monitoring-only mode")
 			continue
 		}
 	}
@@ -427,38 +381,14 @@ func processV2Event(conn *ws.SafeConn, method string, params interface{}, eventI
 	}
 	switch method {
 	case v2.MethodAgentExec:
-		var p struct {
-			TaskID  string `json:"task_id"`
-			Command string `json:"command"`
-		}
-		if err := v2.BindParams(params, &p); err == nil {
-			go NewTask(p.TaskID, p.Command)
-			return true
-		} else {
-			log.Printf("bad v2 exec params: %v", err)
-		}
+		log.Println("Ignoring v2 remote exec event in monitoring-only mode")
+		return true
 	case v2.MethodAgentPing:
-		var p struct {
-			TaskID uint   `json:"ping_task_id"`
-			Type   string `json:"ping_type"`
-			Target string `json:"ping_target"`
-		}
-		if err := v2.BindParams(params, &p); err == nil {
-			go NewPingTask(conn, 2, p.TaskID, p.Type, p.Target)
-			return true
-		} else {
-			log.Printf("bad v2 ping params: %v", err)
-		}
+		log.Println("Ignoring v2 remote ping event in monitoring-only mode")
+		return true
 	case v2.MethodAgentTerminal:
-		var p struct {
-			RequestID string `json:"request_id"`
-		}
-		if err := v2.BindParams(params, &p); err == nil {
-			go establishTerminalConnection(flags.Token, p.RequestID, flags.Endpoint)
-			return true
-		} else {
-			log.Printf("bad v2 terminal params: %v", err)
-		}
+		log.Println("Ignoring v2 terminal event in monitoring-only mode")
+		return true
 	case v2.MethodAgentMessage, v2.MethodAgentEvent:
 		log.Printf("received v2 %s: %+v", method, params)
 		return true
@@ -466,38 +396,6 @@ func processV2Event(conn *ws.SafeConn, method string, params interface{}, eventI
 		log.Printf("unknown v2 event method %s", method)
 	}
 	return false
-}
-
-// connectWebSocket attempts to establish a WebSocket connection and upload basic info
-
-// establishTerminalConnection 建立终端连接并使用terminal包处理终端操作
-func establishTerminalConnection(token, id, endpoint string) {
-	endpoint = strings.TrimSuffix(endpoint, "/") + "/api/clients/terminal?token=" + token + "&id=" + id
-	endpoint = "ws" + strings.TrimPrefix(endpoint, "http")
-
-	// 转换中文域名为 ASCII 兼容编码
-	if convertedEndpoint, err := utils.ConvertIDNToASCII(endpoint); err == nil {
-		endpoint = convertedEndpoint
-	} else {
-		log.Printf("Warning: Failed to convert Terminal WebSocket IDN to ASCII: %v", err)
-	}
-
-	// 使用与主 WS 相同的拨号策略
-	dialer := newWSDialer()
-
-	headers := newWSHeaders()
-
-	conn, _, err := dialer.Dial(endpoint, headers)
-	if err != nil {
-		log.Println("Failed to establish terminal connection:", err)
-		return
-	}
-
-	// 启动终端
-	terminal.StartTerminal(conn)
-	if conn != nil {
-		conn.Close()
-	}
 }
 
 // newWSDialer 构造统一的 WebSocket 拨号器（自定义解析、IPv4/IPv6 动态排序、可选 TLS 忽略）

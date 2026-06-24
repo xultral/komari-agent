@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/komari-monitor/komari-agent/dnsresolver"
+	"github.com/xultral/komari-agent/dnsresolver"
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
 var (
 	CurrentVersion string = "0.0.1"
-	Repo           string = "komari-monitor/komari-agent"
+	Repo           string = "xultral/komari-agent"
 )
 
 // parseVersion 解析可能带有 v/V 前缀，以及预发布或构建元数据的版本字符串

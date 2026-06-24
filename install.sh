@@ -40,6 +40,7 @@ service_name="komari-agent"
 target_dir="/opt/komari"
 github_proxy=""
 install_version="" # New parameter for specifying version
+github_repo="xultral/komari-agent"
  
 
 # Detect OS
@@ -90,6 +91,10 @@ while [[ $# -gt 0 ]]; do
             install_version="$2"
             shift 2
             ;;
+        --install-repo)
+            github_repo="$2"
+            shift 2
+            ;;
         --install*)
             log_warning "Unknown install parameter: $1"
             shift
@@ -128,6 +133,7 @@ log_config "Installation configuration:"
 log_config "  Service name: ${GREEN}$service_name${NC}"
 log_config "  Install directory: ${GREEN}$target_dir${NC}"
 log_config "  GitHub proxy: ${GREEN}${github_proxy:-"(direct)"}${NC}"
+log_config "  Release repo: ${GREEN}$github_repo${NC}"
 log_config "  Binary arguments: ${GREEN}$komari_args${NC}"
 if [ -n "$install_version" ]; then
     log_config "  Specified agent version: ${GREEN}$install_version${NC}"
@@ -297,10 +303,10 @@ fi
 
 if [ -n "$github_proxy" ]; then
     # Use proxy for GitHub releases
-    download_url="${github_proxy}/https://github.com/komari-monitor/komari-agent/releases/${download_path}/${file_name}"
+    download_url="${github_proxy}/https://github.com/${github_repo}/releases/${download_path}/${file_name}"
 else
     # Direct access to GitHub releases
-    download_url="https://github.com/komari-monitor/komari-agent/releases/${download_path}/${file_name}"
+    download_url="https://github.com/${github_repo}/releases/${download_path}/${file_name}"
 fi
 
 log_step "Creating installation directory: ${GREEN}$target_dir${NC}"

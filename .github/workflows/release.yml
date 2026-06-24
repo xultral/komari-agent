@@ -46,7 +46,7 @@ jobs:
             # macOS binaries typically do not have a file extension
             true
           fi
-            go build -trimpath -ldflags="-X github.com/komari-monitor/komari-agent/update.CurrentVersion=${VERSION}" -o $BINARY_NAME
+            go build -buildvcs=false -trimpath -ldflags="-X github.com/xultral/komari-agent/update.CurrentVersion=${VERSION}" -o $BINARY_NAME
 
       - name: Upload binary to release
         env:

@@ -11,17 +11,16 @@ import (
 	"os/signal"
 	"reflect"
 	"strconv"
-	"strings"
 	"syscall"
 
-	"github.com/komari-monitor/komari-agent/dnsresolver"
-	"github.com/komari-monitor/komari-agent/monitoring/netstatic"
-	monitoring "github.com/komari-monitor/komari-agent/monitoring/unit"
-	"github.com/komari-monitor/komari-agent/server"
-	"github.com/komari-monitor/komari-agent/update"
+	"github.com/xultral/komari-agent/dnsresolver"
+	pkg_flags "github.com/xultral/komari-agent/cmd/flags"
+	"github.com/xultral/komari-agent/monitoring/netstatic"
+	monitoring "github.com/xultral/komari-agent/monitoring/unit"
+	"github.com/xultral/komari-agent/server"
+	"github.com/xultral/komari-agent/update"
 	"github.com/spf13/cobra"
-
-	pkg_flags "github.com/komari-monitor/komari-agent/cmd/flags"
+	"github.com/spf13/pflag"
 )
 
 var flags = pkg_flags.GlobalConfig
@@ -29,26 +28,15 @@ var flags = pkg_flags.GlobalConfig
 var RootCmd = &cobra.Command{
 	Use:   "komari-agent",
 	Short: "komari agent",
-	Long:  `komari agent`,
+	Long:  `komari agent (monitoring-only)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		loadFromEnv() // 从环境变量加载配置，覆盖解析
-		if flags.ConfigFile != "" {
-			bytes, err := os.ReadFile(flags.ConfigFile)
-			if err != nil {
-				return fmt.Errorf("failed to read config file: %w", err)
-			}
-			err = json.Unmarshal(bytes, flags)
-			if err != nil {
-				return fmt.Errorf("failed to parse config file: %w", err)
-			}
-		}
-		if flags.ProtocolVersion == 0 {
-			flags.ProtocolVersion = 2
+		if err := loadConfig(cmd); err != nil {
+			return err
 		}
 		if flags.PreferIPVersion != "" && flags.PreferIPVersion != "4" && flags.PreferIPVersion != "6" {
 			return fmt.Errorf("invalid --prefer-ip-version value %q: expected 4 or 6", flags.PreferIPVersion)
 		}
-		// 捕获中止信号，优雅退出
+
 		stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		go func() {
@@ -57,15 +45,6 @@ var RootCmd = &cobra.Command{
 			netstatic.Stop()
 			os.Exit(0)
 		}()
-
-		if flags.ShowWarning {
-			ShowToast()
-			os.Exit(0)
-		}
-
-		if !flags.DisableWebSsh {
-			go WarnKomariRunning()
-		}
 
 		if flags.MonthRotate != 0 {
 			err := netstatic.StartOrContinue()
@@ -85,18 +64,15 @@ var RootCmd = &cobra.Command{
 		}
 
 		log.Println("Komari Agent", update.CurrentVersion)
-		log.Println("Github Repo:", update.Repo)
+		log.Println("Mode: monitoring-only; remote tasks, web terminal, and self-update are disabled")
 
-		// 设置 DNS 解析行为
 		if flags.CustomDNS != "" {
 			dnsresolver.SetCustomDNSServer(flags.CustomDNS)
 			log.Printf("Using custom DNS server: %s", flags.CustomDNS)
 		} else {
-			// 未设置则使用系统默认 DNS（不使用内置列表）
 			log.Printf("Using system default DNS resolver")
 		}
 
-		// Auto discovery
 		if flags.AutoDiscoveryKey != "" {
 			err := handleAutoDiscovery()
 			if err != nil {
@@ -114,18 +90,10 @@ var RootCmd = &cobra.Command{
 		}
 		log.Println("Monitoring Interfaces:", interfaceList)
 
-		// 忽略不安全的证书
 		if flags.IgnoreUnsafeCert {
 			http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		}
-		// 自动更新
-		if !flags.DisableAutoUpdate {
-			err := update.CheckAndUpdate()
-			if err != nil {
-				log.Println("[ERROR]", err)
-			}
-			go update.DoUpdateWorks()
-		}
+
 		go server.DoUploadBasicInfoWorks()
 		for {
 			server.UpdateBasicInfo()
@@ -137,13 +105,11 @@ var RootCmd = &cobra.Command{
 func Execute() {
 	for i, arg := range os.Args {
 		if arg == "-autoUpdate" || arg == "--autoUpdate" {
-			log.Println("WARNING: The -autoUpdate flag is deprecated in version 0.0.9 and later. Use --disable-auto-update to configure auto-update behavior.")
-			// 从参数列表中移除该参数，防止cobra解析错误
+			log.Println("WARNING: Automatic updates are permanently disabled in monitoring-only mode.")
 			os.Args = append(os.Args[:i], os.Args[i+1:]...)
 			break
 		}
 		if arg == "-memory-mode-available" || arg == "--memory-mode-available" {
-			//flags.MemoryIncludeCache = true
 			log.Println("WARNING: The --memory-mode-available flag is deprecated in version 1.0.70 and later. Use --memory-include-cache to report memory usage including cache/buffer.")
 			os.Args = append(os.Args[:i], os.Args[i+1:]...)
 		}
@@ -156,67 +122,109 @@ func Execute() {
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVarP(&flags.Token, "token", "t", "", "API token")
-	//RootCmd.MarkPersistentFlagRequired("token")
-	RootCmd.PersistentFlags().StringVarP(&flags.Endpoint, "endpoint", "e", "", "API endpoint")
-	//RootCmd.MarkPersistentFlagRequired("endpoint")
-	RootCmd.PersistentFlags().StringVar(&flags.AutoDiscoveryKey, "auto-discovery", "", "Auto discovery key for the agent")
-	RootCmd.PersistentFlags().BoolVar(&flags.DisableAutoUpdate, "disable-auto-update", false, "Disable automatic updates")
-	RootCmd.PersistentFlags().BoolVar(&flags.DisableWebSsh, "disable-web-ssh", false, "Disable remote control(web ssh and rce)")
-	//RootCmd.PersistentFlags().BoolVar(&flags.MemoryModeAvailable, "memory-mode-available", false, "[deprecated]Report memory as available instead of used.")
-	RootCmd.PersistentFlags().Float64VarP(&flags.Interval, "interval", "i", 1.0, "Interval in seconds")
-	RootCmd.PersistentFlags().BoolVarP(&flags.IgnoreUnsafeCert, "ignore-unsafe-cert", "u", false, "Ignore unsafe certificate errors")
-	RootCmd.PersistentFlags().IntVarP(&flags.MaxRetries, "max-retries", "r", 3, "Maximum number of retries")
-	RootCmd.PersistentFlags().IntVarP(&flags.ReconnectInterval, "reconnect-interval", "c", 5, "Reconnect interval in seconds")
-	RootCmd.PersistentFlags().IntVar(&flags.InfoReportInterval, "info-report-interval", 5, "Interval in minutes for reporting basic info")
-	RootCmd.PersistentFlags().StringVar(&flags.IncludeNics, "include-nics", "", "Comma-separated list of network interfaces to include")
-	RootCmd.PersistentFlags().StringVar(&flags.ExcludeNics, "exclude-nics", "", "Comma-separated list of network interfaces to exclude")
-	RootCmd.PersistentFlags().StringVar(&flags.IncludeMountpoints, "include-mountpoint", "", "Semicolon-separated list of mount points to include for disk statistics")
-	RootCmd.PersistentFlags().IntVar(&flags.MonthRotate, "month-rotate", 0, "Month reset for network statistics (0 to disable)")
-	RootCmd.PersistentFlags().StringVar(&flags.CFAccessClientID, "cf-access-client-id", "", "Cloudflare Access Client ID")
-	RootCmd.PersistentFlags().StringVar(&flags.CFAccessClientSecret, "cf-access-client-secret", "", "Cloudflare Access Client Secret")
-	RootCmd.PersistentFlags().BoolVar(&flags.MemoryIncludeCache, "memory-include-cache", false, "Include cache/buffer in memory usage")
-	RootCmd.PersistentFlags().BoolVar(&flags.MemoryReportRawUsed, "memory-exclude-bcf", false, "Use \"raminfo.Used = v.Total - v.Free - v.Buffers - v.Cached\" calculation for memory usage")
-	RootCmd.PersistentFlags().StringVar(&flags.CustomDNS, "custom-dns", "", "Custom DNS server to use (e.g. 8.8.8.8, 114.114.114.114). By default, the program uses the system DNS resolver.")
-	RootCmd.PersistentFlags().BoolVar(&flags.EnableGPU, "gpu", false, "Enable detailed GPU monitoring (usage, memory, multi-GPU support)")
-	RootCmd.PersistentFlags().BoolVar(&flags.ShowWarning, "show-warning", false, "Show security warning on Windows, run once as a subprocess")
-	RootCmd.PersistentFlags().StringVar(&flags.CustomIpv4, "custom-ipv4", "", "Custom IPv4 address to use")
-	RootCmd.PersistentFlags().StringVar(&flags.CustomIpv6, "custom-ipv6", "", "Custom IPv6 address to use")
-	RootCmd.PersistentFlags().BoolVar(&flags.GetIpAddrFromNic, "get-ip-addr-from-nic", false, "Get IP address from network interface")
-	RootCmd.PersistentFlags().StringVar(&flags.ConfigFile, "config", "", "Path to the configuration file")
-	RootCmd.PersistentFlags().IntVar(&flags.ProtocolVersion, "protocol-version", 2, "Report protocol version (1 or 2)")
-	RootCmd.PersistentFlags().BoolVar(&flags.DisableCompression, "disable-compression", false, "Disable v2 gzip/permessage-deflate compression")
-	RootCmd.PersistentFlags().StringVar(&flags.PreferIPVersion, "prefer-ip-version", "", "Prefer IP version for dashboard connections: 4 or 6")
-	RootCmd.PersistentFlags().ParseErrorsWhitelist.UnknownFlags = true
+	registerPersistentFlags(RootCmd)
 }
 
-func loadFromEnv() {
-	val := reflect.ValueOf(flags).Elem()
+func registerPersistentFlags(cmd *cobra.Command) {
+	defaults := defaultConfig()
+
+	cmd.PersistentFlags().StringVarP(&flags.Token, "token", "t", "", "API token")
+	cmd.PersistentFlags().StringVarP(&flags.Endpoint, "endpoint", "e", "", "API endpoint")
+	cmd.PersistentFlags().StringVar(&flags.AutoDiscoveryKey, "auto-discovery", "", "Auto discovery key for the agent")
+	cmd.PersistentFlags().BoolVar(&flags.DisableAutoUpdate, "disable-auto-update", defaults.DisableAutoUpdate, "Deprecated compatibility flag. Automatic updates are permanently disabled.")
+	cmd.PersistentFlags().BoolVar(&flags.DisableWebSsh, "disable-web-ssh", defaults.DisableWebSsh, "Deprecated compatibility flag. Remote control is permanently disabled.")
+	cmd.PersistentFlags().Float64VarP(&flags.Interval, "interval", "i", defaults.Interval, "Interval in seconds")
+	cmd.PersistentFlags().BoolVarP(&flags.IgnoreUnsafeCert, "ignore-unsafe-cert", "u", false, "Ignore unsafe certificate errors")
+	cmd.PersistentFlags().IntVarP(&flags.MaxRetries, "max-retries", "r", defaults.MaxRetries, "Maximum number of retries")
+	cmd.PersistentFlags().IntVarP(&flags.ReconnectInterval, "reconnect-interval", "c", defaults.ReconnectInterval, "Reconnect interval in seconds")
+	cmd.PersistentFlags().IntVar(&flags.InfoReportInterval, "info-report-interval", defaults.InfoReportInterval, "Interval in minutes for reporting basic info")
+	cmd.PersistentFlags().StringVar(&flags.IncludeNics, "include-nics", "", "Comma-separated list of network interfaces to include")
+	cmd.PersistentFlags().StringVar(&flags.ExcludeNics, "exclude-nics", "", "Comma-separated list of network interfaces to exclude")
+	cmd.PersistentFlags().StringVar(&flags.IncludeMountpoints, "include-mountpoint", "", "Semicolon-separated list of mount points to include for disk statistics")
+	cmd.PersistentFlags().IntVar(&flags.MonthRotate, "month-rotate", 0, "Month reset for network statistics (0 to disable)")
+	cmd.PersistentFlags().StringVar(&flags.CFAccessClientID, "cf-access-client-id", "", "Cloudflare Access Client ID")
+	cmd.PersistentFlags().StringVar(&flags.CFAccessClientSecret, "cf-access-client-secret", "", "Cloudflare Access Client Secret")
+	cmd.PersistentFlags().BoolVar(&flags.MemoryIncludeCache, "memory-include-cache", false, "Include cache/buffer in memory usage")
+	cmd.PersistentFlags().BoolVar(&flags.MemoryReportRawUsed, "memory-exclude-bcf", false, "Use \"raminfo.Used = v.Total - v.Free - v.Buffers - v.Cached\" calculation for memory usage")
+	cmd.PersistentFlags().StringVar(&flags.CustomDNS, "custom-dns", "", "Custom DNS server to use (e.g. 8.8.8.8, 114.114.114.114). By default, the program uses the system DNS resolver.")
+	cmd.PersistentFlags().BoolVar(&flags.EnableGPU, "gpu", false, "Enable detailed GPU monitoring (usage, memory, multi-GPU support)")
+	cmd.PersistentFlags().BoolVar(&flags.ShowWarning, "show-warning", false, "Deprecated compatibility flag. Does nothing in monitoring-only mode.")
+	cmd.PersistentFlags().StringVar(&flags.CustomIpv4, "custom-ipv4", "", "Custom IPv4 address to use")
+	cmd.PersistentFlags().StringVar(&flags.CustomIpv6, "custom-ipv6", "", "Custom IPv6 address to use")
+	cmd.PersistentFlags().BoolVar(&flags.GetIpAddrFromNic, "get-ip-addr-from-nic", false, "Get IP address from network interface")
+	cmd.PersistentFlags().StringVar(&flags.ConfigFile, "config", "", "Path to the configuration file")
+	cmd.PersistentFlags().IntVar(&flags.ProtocolVersion, "protocol-version", defaults.ProtocolVersion, "Report protocol version (1 or 2)")
+	cmd.PersistentFlags().BoolVar(&flags.DisableCompression, "disable-compression", false, "Disable v2 gzip/permessage-deflate compression")
+	cmd.PersistentFlags().StringVar(&flags.PreferIPVersion, "prefer-ip-version", "", "Prefer IP version for dashboard connections: 4 or 6")
+	cmd.PersistentFlags().ParseErrorsWhitelist.UnknownFlags = true
+}
+
+func defaultConfig() pkg_flags.Config {
+	return pkg_flags.Config{
+		DisableAutoUpdate: true,
+		DisableWebSsh:     true,
+		Interval:          1.0,
+		MaxRetries:        3,
+		ReconnectInterval: 5,
+		InfoReportInterval: 5,
+		ProtocolVersion:   2,
+	}
+}
+
+func loadConfig(cmd *cobra.Command) error {
+	resolved := defaultConfig()
+	configPath := resolved.ConfigFile
+
+	if envConfigPath := os.Getenv("AGENT_CONFIG_FILE"); envConfigPath != "" {
+		configPath = envConfigPath
+	}
+	if flag := cmd.Flags().Lookup("config"); flag != nil && flag.Changed {
+		configPath = flag.Value.String()
+	}
+	resolved.ConfigFile = configPath
+
+	if configPath != "" {
+		bytes, err := os.ReadFile(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to read config file: %w", err)
+		}
+		if err := json.Unmarshal(bytes, &resolved); err != nil {
+			return fmt.Errorf("failed to parse config file: %w", err)
+		}
+	}
+
+	loadFromEnv(&resolved)
+	applyFlagOverrides(cmd, &resolved)
+	enforceMonitoringOnlyDefaults(&resolved)
+	*flags = resolved
+
+	return nil
+}
+
+func loadFromEnv(target *pkg_flags.Config) {
+	val := reflect.ValueOf(target).Elem()
 	typ := val.Type()
 
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		fieldType := typ.Field(i)
 
-		// Get the env tag
 		envTag := fieldType.Tag.Get("env")
 		if envTag == "" {
 			continue
 		}
 
-		// Get the environment variable value
 		envValue := os.Getenv(envTag)
 		if envValue == "" {
 			continue
 		}
 
-		// Set the field based on its type
 		switch field.Kind() {
 		case reflect.String:
 			field.SetString(envValue)
 		case reflect.Bool:
-			if strings.ToLower(envValue) == "true" || envValue == "1" {
-				field.SetBool(true)
+			if boolVal, err := strconv.ParseBool(envValue); err == nil {
+				field.SetBool(boolVal)
 			}
 		case reflect.Int:
 			if intVal, err := strconv.Atoi(envValue); err == nil {
@@ -228,4 +236,103 @@ func loadFromEnv() {
 			}
 		}
 	}
+}
+
+func applyFlagOverrides(cmd *cobra.Command, target *pkg_flags.Config) {
+	cmd.Flags().Visit(func(flag *pflag.Flag) {
+		switch flag.Name {
+		case "token":
+			target.Token = flag.Value.String()
+		case "endpoint":
+			target.Endpoint = flag.Value.String()
+		case "auto-discovery":
+			target.AutoDiscoveryKey = flag.Value.String()
+		case "disable-auto-update":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.DisableAutoUpdate = value
+			}
+		case "disable-web-ssh":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.DisableWebSsh = value
+			}
+		case "interval":
+			if value, err := strconv.ParseFloat(flag.Value.String(), 64); err == nil {
+				target.Interval = value
+			}
+		case "ignore-unsafe-cert":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.IgnoreUnsafeCert = value
+			}
+		case "max-retries":
+			if value, err := strconv.Atoi(flag.Value.String()); err == nil {
+				target.MaxRetries = value
+			}
+		case "reconnect-interval":
+			if value, err := strconv.Atoi(flag.Value.String()); err == nil {
+				target.ReconnectInterval = value
+			}
+		case "info-report-interval":
+			if value, err := strconv.Atoi(flag.Value.String()); err == nil {
+				target.InfoReportInterval = value
+			}
+		case "include-nics":
+			target.IncludeNics = flag.Value.String()
+		case "exclude-nics":
+			target.ExcludeNics = flag.Value.String()
+		case "include-mountpoint":
+			target.IncludeMountpoints = flag.Value.String()
+		case "month-rotate":
+			if value, err := strconv.Atoi(flag.Value.String()); err == nil {
+				target.MonthRotate = value
+			}
+		case "cf-access-client-id":
+			target.CFAccessClientID = flag.Value.String()
+		case "cf-access-client-secret":
+			target.CFAccessClientSecret = flag.Value.String()
+		case "memory-include-cache":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.MemoryIncludeCache = value
+			}
+		case "memory-exclude-bcf":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.MemoryReportRawUsed = value
+			}
+		case "custom-dns":
+			target.CustomDNS = flag.Value.String()
+		case "gpu":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.EnableGPU = value
+			}
+		case "show-warning":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.ShowWarning = value
+			}
+		case "custom-ipv4":
+			target.CustomIpv4 = flag.Value.String()
+		case "custom-ipv6":
+			target.CustomIpv6 = flag.Value.String()
+		case "get-ip-addr-from-nic":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.GetIpAddrFromNic = value
+			}
+		case "config":
+			target.ConfigFile = flag.Value.String()
+		case "protocol-version":
+			if value, err := strconv.Atoi(flag.Value.String()); err == nil {
+				target.ProtocolVersion = value
+			}
+		case "disable-compression":
+			if value, err := strconv.ParseBool(flag.Value.String()); err == nil {
+				target.DisableCompression = value
+			}
+		case "prefer-ip-version":
+			target.PreferIPVersion = flag.Value.String()
+		}
+	})
+}
+
+func enforceMonitoringOnlyDefaults(target *pkg_flags.Config) {
+	target.DisableWebSsh = true
+	target.DisableAutoUpdate = true
+	target.ShowWarning = false
 }

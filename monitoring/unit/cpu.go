@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	pkg_flags "github.com/komari-monitor/komari-agent/cmd/flags"
+	pkg_flags "github.com/xultral/komari-agent/cmd/flags"
 	"github.com/shirou/gopsutil/v4/cpu"
 )
 
