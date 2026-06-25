@@ -18,7 +18,7 @@ import (
 	"github.com/xultral/komari-agent/monitoring/netstatic"
 	monitoring "github.com/xultral/komari-agent/monitoring/unit"
 	"github.com/xultral/komari-agent/server"
-	"github.com/xultral/komari-agent/update"
+	"github.com/xultral/komari-agent/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -63,7 +63,7 @@ var RootCmd = &cobra.Command{
 			}
 		}
 
-		log.Println("Komari Agent", update.CurrentVersion)
+		log.Println("Komari Agent", version.CurrentVersion)
 		log.Println("Mode: monitoring-only; remote tasks, web terminal, and self-update are disabled")
 
 		if flags.CustomDNS != "" {

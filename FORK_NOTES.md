@@ -59,9 +59,26 @@
 
 - `install.sh`
 - `install.ps1`
-- `update/update.go`
+- ~~`update/update.go`~~ **已删除（2026-06-25）**
 - `README`
 - `RELEASE.md`
+
+### 4.5. 版本管理重构（2026-06-25 新增）
+
+为彻底消除自动更新的理论风险，已完全删除 `update` 包：
+
+- **删除**：`update/update.go` 及整个 `update/` 目录
+- **新增**：`version/version.go`，只包含版本常量
+- **更新引用点**：
+  - `cmd/root.go`：从 `update.CurrentVersion` 改为 `version.CurrentVersion`
+  - `server/basicInfo.go`：从 `update.CurrentVersion` 改为 `version.CurrentVersion`
+- **更新构建脚本版本注入路径**：
+  - `.github/workflows/build.yml`
+  - `.github/workflows/release.yml`
+  - `.github/workflows/release-docker.yml`
+  - `build_all.sh`
+  - `build_all.ps1`
+  - 从 `-ldflags "-X .../update.CurrentVersion=..."` 改为 `-ldflags "-X .../version.CurrentVersion=..."`
 
 ### 5. 模块路径改动
 

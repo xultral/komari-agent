@@ -41,7 +41,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME=${BINARY_NAME}.exe
           fi
-          go build -buildvcs=false -trimpath -ldflags="-X github.com/xultral/komari-agent/update.CurrentVersion=${VERSION}" -o $BINARY_NAME
+          go build -buildvcs=false -trimpath -ldflags="-X github.com/xultral/komari-agent/version.CurrentVersion=${VERSION}" -o $BINARY_NAME
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

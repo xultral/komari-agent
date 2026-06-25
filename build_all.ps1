@@ -48,7 +48,7 @@ foreach ($goos in $osList) {
         $env:CGO_ENABLED = '0'
         $env:GOCACHE = $goCacheDir
 
-        & go build -buildvcs=false -trimpath -ldflags "-X github.com/xultral/komari-agent/update.CurrentVersion=$version" -o "$outPath"
+        & go build -buildvcs=false -trimpath -ldflags "-X github.com/xultral/komari-agent/version.CurrentVersion=$version" -o "$outPath"
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Failed to build for $goos/$goarch" -ForegroundColor $Red
             $failedBuilds += "$goos/$goarch"

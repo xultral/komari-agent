@@ -13,7 +13,7 @@ import (
 	monitoring "github.com/xultral/komari-agent/monitoring/unit"
 	"github.com/xultral/komari-agent/protocol/transport"
 	v2 "github.com/xultral/komari-agent/protocol/v2"
-	"github.com/xultral/komari-agent/update"
+	"github.com/xultral/komari-agent/version"
 
 	pkg_flags "github.com/xultral/komari-agent/cmd/flags"
 )
@@ -58,7 +58,7 @@ func uploadBasicInfo() error {
 		"disk_total":         monitoring.Disk().Total,
 		"gpu_name":           monitoring.GpuName(),
 		"virtualization":     monitoring.Virtualized(),
-		"version":            update.CurrentVersion,
+		"version":            version.CurrentVersion,
 	}
 
 	// 尝试上传完整数据
