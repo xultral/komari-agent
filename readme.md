@@ -67,9 +67,9 @@ go test ./...
 - 最新版：`https://github.com/xultral/komari-agent/releases/latest/download/<binary>`
 - 指定版：`https://github.com/xultral/komari-agent/releases/download/<tag>/<binary>`
 
-具体流程见 [RELEASE.md](//RELEASE.md)。
+具体流程见 [RELEASE.md](./RELEASE.md)。
 
-与官方版的差异及后续同步维护方式见 [FORK_NOTES.md](/FORK_NOTES.md)。
+与官方版的差异及后续同步维护方式见 [FORK_NOTES.md](./FORK_NOTES.md)。
 
 ## 代码入口
 
