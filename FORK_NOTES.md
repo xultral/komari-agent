@@ -28,7 +28,10 @@
 - `loong64` 构建、Docker `COPY --chmod`、GitHub Actions 使用 `go.mod` 指定 Go 版本
 - Linux 非 root 安装和 systemd user service，服务默认使用调用安装脚本的用户
 - Windows 安装脚本自动提权，并修复用户名或安装路径包含空格时的参数转义
+- Linux 安装脚本支持无 Bash 的 POSIX shell、OpenWrt `opkg`，并修正 procd/launchd 服务参数
 - v2 报告直接复用原始 JSON，避免重复反序列化和序列化
+- 采样改为非阻塞后，默认上报间隔同步上游调整为 3 秒，基础信息不再触发实时 CPU 采样
+- WebSocket 每秒检查连接，但按配置间隔限流上报；v2 事件去重表增加 TTL 和容量上限
 
 明确不引入：
 

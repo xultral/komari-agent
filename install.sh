@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 EUID=${EUID:-$(id -u)}
 
@@ -78,7 +78,7 @@ esac
 
 # Parse install-specific arguments
 komari_args=""
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
     case $1 in
         --install-dir)
             target_dir="$2"
@@ -245,11 +245,15 @@ install_dependencies() {
         elif command -v apk >/dev/null 2>&1; then
             log_info "Using apk to install dependencies..."
             apk add $missing_deps
+        elif command -v opkg >/dev/null 2>&1; then
+            log_info "Using opkg to install dependencies (OpenWrt/iStoreOS)..."
+            opkg update
+            opkg install $missing_deps
         elif command -v brew >/dev/null 2>&1; then
             log_info "Using Homebrew to install dependencies..."
             brew install $missing_deps
         else
-            log_error "No supported package manager found (apt/yum/apk/brew)"
+            log_error "No supported package manager found (apt/yum/apk/opkg/brew)"
             exit 1
         fi
         
@@ -580,16 +584,14 @@ ARGS="${komari_args}"
 
 start_service() {
     procd_open_instance
-    procd_set_param command \$PROG \$ARGS
+    procd_set_param command "\$PROG"
+    # shellcheck disable=SC2086
+    procd_append_param command \$ARGS
     procd_set_param respawn
     procd_set_param stdout 1
     procd_set_param stderr 1
     procd_set_param user ${service_user}
     procd_close_instance
-}
-
-stop_service() {
-    killall \$(basename \$PROG)
 }
 
 reload_service() {
@@ -608,7 +610,13 @@ elif [ "$init_system" = "launchd" ]; then
     log_info "Using launchd for service management"
     
     # Determine if this should be a system or user service based on installation directory
-    if [[ "$target_dir" =~ ^/Users/.* ]] || [ "$EUID" -ne 0 ]; then
+    is_user_install=false
+    case "$target_dir" in
+        /Users/*) is_user_install=true ;;
+    esac
+    [ "$EUID" -ne 0 ] && is_user_install=true
+
+    if [ "$is_user_install" = true ]; then
         # User-level service (LaunchAgent)
         plist_dir="$HOME/Library/LaunchAgents"
         plist_file="$plist_dir/com.komari.${service_name}.plist"
@@ -661,7 +669,7 @@ EOF
 EOF
     
     # Load and start the service
-    if [[ "$target_dir" =~ ^/Users/.* ]] || [ "$EUID" -ne 0 ]; then
+    if [ "$is_user_install" = true ]; then
         # User-level service
         if launchctl bootstrap gui/$(id -u) "$plist_file"; then
             log_success "User-level launchd service configured and started"
