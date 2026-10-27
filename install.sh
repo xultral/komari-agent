@@ -364,8 +364,9 @@ else
     log_step "Downloading $file_name directly..."
     log_info "URL: ${CYAN}$download_url${NC}"
 fi
-if ! curl -L -o "$komari_agent_path" "$download_url"; then
-    log_error "Download failed"
+if ! curl -fL --connect-timeout 15 -o "$komari_agent_path" "$download_url" || [ ! -s "$komari_agent_path" ]; then
+    rm -f "$komari_agent_path"
+    log_error "Download failed or returned an empty file"
     exit 1
 fi
 
