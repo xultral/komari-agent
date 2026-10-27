@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	pkg_flags "github.com/xultral/komari-agent/cmd/flags"
 	"github.com/spf13/cobra"
+	pkg_flags "github.com/xultral/komari-agent/cmd/flags"
 )
 
 func TestLoadConfigPrecedenceAndMonitoringOnlyDefaults(t *testing.T) {
@@ -66,6 +66,13 @@ func TestLoadConfigUsesEnvWhenNoCLIOverride(t *testing.T) {
 	}
 	if flags.Endpoint != "https://env.example" {
 		t.Fatalf("expected env endpoint, got %q", flags.Endpoint)
+	}
+}
+
+func TestDefaultConfigUsesNonBlockingSamplingInterval(t *testing.T) {
+	defaults := defaultConfig()
+	if defaults.Interval != 3 {
+		t.Fatalf("expected default sampling interval 3 seconds, got %v", defaults.Interval)
 	}
 }
 

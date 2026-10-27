@@ -25,7 +25,12 @@ import (
 var (
 	v2AckMu       sync.Mutex
 	v2AckEventIDs []string
-	v2SeenEvents  = make(map[string]struct{})
+	v2SeenEvents  = make(map[string]time.Time)
+)
+
+const (
+	v2SeenEventTTL   = 10 * time.Minute
+	v2SeenEventLimit = 4096
 )
 
 func EstablishWebSocketConnection() {
@@ -37,10 +42,13 @@ func EstablishWebSocketConnection() {
 		resetConnectionProtocolVersion()
 	}()
 	var err error
-	interval := math.Max(1, flags.Interval-1)
+	interval := math.Max(1, flags.Interval)
 
-	dataTicker := time.NewTicker(time.Duration(interval * float64(time.Second)))
+	// Reconnect promptly even when reports are configured at a long interval.
+	dataTicker := time.NewTicker(time.Second)
 	defer dataTicker.Stop()
+	reportInterval := time.Duration(interval * float64(time.Second))
+	nextReportAt := time.Now()
 
 	heartbeatTicker := time.NewTicker(30 * time.Second)
 	defer heartbeatTicker.Stop()
@@ -108,6 +116,10 @@ func EstablishWebSocketConnection() {
 					go handleWebSocketMessages(conn, activeProtocol, done)
 				}
 			}
+			if conn == nil || time.Now().Before(nextReportAt) {
+				continue
+			}
+			nextReportAt = time.Now().Add(reportInterval)
 
 			data := monitoring.GenerateReport()
 			if activeProtocol >= 2 {
@@ -304,10 +316,28 @@ func markV2EventSeen(id string) bool {
 	}
 	v2AckMu.Lock()
 	defer v2AckMu.Unlock()
+	now := time.Now()
+	for eventID, seenAt := range v2SeenEvents {
+		if now.Sub(seenAt) > v2SeenEventTTL {
+			delete(v2SeenEvents, eventID)
+		}
+	}
 	if _, ok := v2SeenEvents[id]; ok {
 		return false
 	}
-	v2SeenEvents[id] = struct{}{}
+	if len(v2SeenEvents) >= v2SeenEventLimit {
+		var oldestID string
+		var oldest time.Time
+		for eventID, seenAt := range v2SeenEvents {
+			if oldestID == "" || seenAt.Before(oldest) {
+				oldestID, oldest = eventID, seenAt
+			}
+		}
+		if oldestID != "" {
+			delete(v2SeenEvents, oldestID)
+		}
+	}
+	v2SeenEvents[id] = now
 	return true
 }
 

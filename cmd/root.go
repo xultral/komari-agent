@@ -13,14 +13,14 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/xultral/komari-agent/dnsresolver"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	pkg_flags "github.com/xultral/komari-agent/cmd/flags"
+	"github.com/xultral/komari-agent/dnsresolver"
 	"github.com/xultral/komari-agent/monitoring/netstatic"
 	monitoring "github.com/xultral/komari-agent/monitoring/unit"
 	"github.com/xultral/komari-agent/server"
 	"github.com/xultral/komari-agent/version"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 var flags = pkg_flags.GlobalConfig
@@ -161,13 +161,13 @@ func registerPersistentFlags(cmd *cobra.Command) {
 
 func defaultConfig() pkg_flags.Config {
 	return pkg_flags.Config{
-		DisableAutoUpdate: true,
-		DisableWebSsh:     true,
-		Interval:          1.0,
-		MaxRetries:        3,
-		ReconnectInterval: 5,
+		DisableAutoUpdate:  true,
+		DisableWebSsh:      true,
+		Interval:           3.0,
+		MaxRetries:         3,
+		ReconnectInterval:  5,
 		InfoReportInterval: 5,
-		ProtocolVersion:   2,
+		ProtocolVersion:    2,
 	}
 }
 
