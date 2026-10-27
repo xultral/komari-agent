@@ -1,6 +1,8 @@
 #!/bin/sh
 
-EUID=${EUID:-$(id -u)}
+if [ -z "${EUID+x}" ]; then
+    EUID=$(id -u)
+fi
 
 # Color definitions for terminal output
 RED='\033[0;31m'
