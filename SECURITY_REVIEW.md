@@ -1,7 +1,7 @@
 # 安全审查报告
 
 ## 审查日期
-2026-06-25
+2026-06-25；2026-10-27 完成上游 `1.5.11` 同步复审
 
 ## 审查范围
 审查 komari-agent 从官方版本改造为"监控专用"版本的安全性，确认所有远程控制功能已被安全移除。
@@ -131,7 +131,7 @@ func enforceMonitoringOnlyDefaults(target *pkg_flags.Config) {
 **安全性：**
 - ✅ 自动更新逻辑已从主程序流程中移除
 - ✅ 配置加载后强制禁用自动更新
-- ✅ `update.go` 文件虽然保留，但没有被调用
+- ✅ `update/` 目录已完全删除，不存在可调用的更新代码
 
 ---
 
@@ -187,7 +187,7 @@ func defaultConfig() pkg_flags.Config {
     return pkg_flags.Config{
         DisableAutoUpdate: true,  // 强制禁用
         DisableWebSsh:     true,  // 强制禁用
-        Interval:          1.0,
+        Interval:          3.0,
         MaxRetries:        3,
         ReconnectInterval: 5,
         InfoReportInterval: 5,
@@ -201,6 +201,7 @@ func defaultConfig() pkg_flags.Config {
 - ✅ 即使配置文件或环境变量尝试启用危险功能，最后的 `enforceMonitoringOnlyDefaults()` 也会强制禁用
 - ✅ 配置加载顺序确保了"最后一道防线"的有效性
 - ✅ 测试已验证此行为（`TestLoadConfigPrecedenceAndMonitoringOnlyDefaults`）
+- ✅ 采样改为非阻塞后，默认 3 秒上报；WebSocket 每秒检查连接但按配置间隔限流上报
 
 ---
 
@@ -316,6 +317,7 @@ ok  	github.com/xultral/komari-agent/cmd	0.092s
 **防御机制：** 
 1. `handleWebSocketMessages()` 中所有危险消息类型都被忽略
 2. 对应的处理函数（task.go, terminal/）已完全删除
+3. `processV2Event()` 对未知方法默认拒绝，且事件去重表有 TTL 和容量上限
 **结果：** ✅ 攻击失败，只会记录日志
 
 ### 攻击场景 5：尝试触发自动更新
@@ -440,7 +442,7 @@ go test ./...
 
 ## 结论
 
-### 总体评估：✅ 安全（2026-06-25 最终版）
+### 总体评估：✅ 安全（2026-10-27 同步复审版）
 
 该改造版本的 komari-agent 已成功转变为纯监控探针，所有远程控制功能都已被安全移除或禁用。**2026-06-25 更新：唯一的理论风险点（update 包）也已完全删除。**
 
@@ -463,7 +465,7 @@ go test ./...
 ./komari-agent \
   --endpoint https://your-dashboard.example.com \
   --token YOUR_TOKEN \
-  --interval 1.0 \
+  --interval 3.0 \
   --info-report-interval 5
 
 # 不需要再加这些参数（已永久禁用）：
@@ -477,4 +479,6 @@ go test ./...
 - 审查工具：Claude Code (Claude Opus 4.8)
 - 审查日期：2026-06-25
 - 审查方法：静态代码分析 + 动态测试 + 威胁建模
-- 代码版本：commit 0185980 (refactor: make agent monitoring-only)
+- 代码版本：`sync/upstream-1.5.11` 分支，上游基线 `ddbdbdc`（`1.5.11` 稳定线）
+- 2026-10-27 复审：补齐上游监控修复、默认拒绝未知 v2 方法，并通过 `go test`、`go vet`、
+  `go test -race` 和全平台交叉编译
