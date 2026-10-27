@@ -26,6 +26,7 @@
 - AMD GPU sysfs 回退和 Windows NVIDIA 详细 GPU 监控
 - netstatic 统计文件不可写时的警告
 - `loong64` 构建、Docker `COPY --chmod`、GitHub Actions 使用 `go.mod` 指定 Go 版本
+- 发布二进制启用上游的符号表和调试信息裁剪（`-s -w`）
 - Linux 非 root 安装和 systemd user service，服务默认使用调用安装脚本的用户
 - Windows 安装脚本自动提权，并修复用户名或安装路径包含空格时的参数转义
 - Linux 安装脚本支持无 Bash 的 POSIX shell、OpenWrt `opkg`，并修正 procd/launchd 服务参数
@@ -44,8 +45,11 @@
 `security_invariants_test.go` 会在运行测试时阻止上述危险目录、文件、依赖和事件处理
 重新进入仓库。v2 事件分发默认拒绝未识别的方法，避免未来上游新增事件时被误执行。
 
+Cloudflare Access 请求头属于本 fork 已有的面板连接兼容能力，不涉及远程控制，因此本轮
+保留上游已移除的 CF Access Client ID/Secret 配置；这些值只会发送到已配置的面板地址。
+
 `.gitattributes` 固定 shell、Docker 和 workflow 文件使用 LF，Windows PowerShell 脚本
-使用 CRLF，避免在 Windows 检出的 `install.sh` 无法被 bash 解析。
+使用 CRLF，避免在 Windows 检出的 `install.sh` 无法被 shell 解析。
 
 ## 与官方版的核心差异
 
