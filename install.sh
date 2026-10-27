@@ -16,27 +16,27 @@ NC='\033[0m' # No Color
 
 # Logging functions
 log_info() {
-    echo -e "${NC} $1"
+    printf '%b\n' "${NC} $1"
 }
 
 log_success() {
-    echo -e "${GREEN}${NC} $1"
+    printf '%b\n' "${GREEN}${NC} $1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    printf '%b\n' "${YELLOW}[WARNING]${NC} $1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    printf '%b\n' "${RED}[ERROR]${NC} $1"
 }
 
 log_step() {
-    echo -e "${NC} $1"
+    printf '%b\n' "${NC} $1"
 }
 
 log_config() {
-    echo -e "${CYAN}[CONFIG]${NC} $1"
+    printf '%b\n' "${CYAN}[CONFIG]${NC} $1"
 }
 
 # Default values
@@ -140,9 +140,9 @@ if [ "$EUID" -ne 0 ] && [ "$os_name" = "linux" ]; then
     fi
 fi
 
-echo -e "${WHITE}===========================================${NC}"
-echo -e "${WHITE}    Komari Agent Installation Script     ${NC}"
-echo -e "${WHITE}===========================================${NC}"
+printf '%b\n' "${WHITE}===========================================${NC}"
+printf '%b\n' "${WHITE}    Komari Agent Installation Script     ${NC}"
+printf '%b\n' "${WHITE}===========================================${NC}"
 echo ""
 log_config "Installation configuration:"
 log_config "  Service name: ${GREEN}$service_name${NC}"
@@ -479,18 +479,18 @@ if [ "$init_system" = "nixos" ]; then
     log_warning "NixOS detected. System services must be configured declaratively."
     log_info "Please add the following to your NixOS configuration:"
     echo ""
-    echo -e "${CYAN}systemd.services.${service_name} = {${NC}"
-    echo -e "${CYAN}  description = \"Komari Agent Service\";${NC}"
-    echo -e "${CYAN}  after = [ \"network.target\" ];${NC}"
-    echo -e "${CYAN}  wantedBy = [ \"multi-user.target\" ];${NC}"
-    echo -e "${CYAN}  serviceConfig = {${NC}"
-    echo -e "${CYAN}    Type = \"simple\";${NC}"
-    echo -e "${CYAN}    ExecStart = \"${komari_agent_path} ${komari_args}\";${NC}"
-    echo -e "${CYAN}    WorkingDirectory = \"${target_dir}\";${NC}"
-    echo -e "${CYAN}    Restart = \"always\";${NC}"
-    echo -e "${CYAN}    User = \"${service_user}\";${NC}"
-    echo -e "${CYAN}  };${NC}"
-    echo -e "${CYAN}};${NC}"
+    printf '%b\n' "${CYAN}systemd.services.${service_name} = {${NC}"
+    printf '%b\n' "${CYAN}  description = \"Komari Agent Service\";${NC}"
+    printf '%b\n' "${CYAN}  after = [ \"network.target\" ];${NC}"
+    printf '%b\n' "${CYAN}  wantedBy = [ \"multi-user.target\" ];${NC}"
+    printf '%b\n' "${CYAN}  serviceConfig = {${NC}"
+    printf '%b\n' "${CYAN}    Type = \"simple\";${NC}"
+    printf '%b\n' "${CYAN}    ExecStart = \"${komari_agent_path} ${komari_args}\";${NC}"
+    printf '%b\n' "${CYAN}    WorkingDirectory = \"${target_dir}\";${NC}"
+    printf '%b\n' "${CYAN}    Restart = \"always\";${NC}"
+    printf '%b\n' "${CYAN}    User = \"${service_user}\";${NC}"
+    printf '%b\n' "${CYAN}  };${NC}"
+    printf '%b\n' "${CYAN}};${NC}"
     echo ""
     log_info "Then run: sudo nixos-rebuild switch"
     log_warning "Service not started automatically on NixOS. Please rebuild your configuration."
@@ -728,7 +728,7 @@ else
 fi
 
 echo ""
-echo -e "${WHITE}===========================================${NC}"
+printf '%b\n' "${WHITE}===========================================${NC}"
 if [ -f /etc/NIXOS ]; then
     log_success "Komari-agent binary installed!"
     log_warning "NixOS requires declarative service configuration."
@@ -738,4 +738,4 @@ else
 fi
 log_config "Service: ${GREEN}$service_name${NC}"
 log_config "Arguments: ${GREEN}$komari_args${NC}"
-echo -e "${WHITE}===========================================${NC}"
+printf '%b\n' "${WHITE}===========================================${NC}"
