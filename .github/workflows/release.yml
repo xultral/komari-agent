@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   build-and-attach:
+    if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest
 
     strategy:
@@ -20,6 +21,9 @@ jobs:
             goarch: 386
           - goos: darwin
             goarch: arm
+        include:
+          - goos: linux
+            goarch: loong64
         goos: [windows, linux, darwin, freebsd]
         goarch: [amd64, arm64, 386, arm]
 
@@ -30,7 +34,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version-file: go.mod
 
       - name: Build binary
         env:

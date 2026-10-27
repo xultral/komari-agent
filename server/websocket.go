@@ -393,9 +393,9 @@ func processV2Event(conn *ws.SafeConn, method string, params interface{}, eventI
 		log.Printf("received v2 %s: %+v", method, params)
 		return true
 	default:
-		log.Printf("unknown v2 event method %s", method)
+		log.Printf("Ignoring unsupported v2 event method %s in monitoring-only mode", method)
+		return true
 	}
-	return false
 }
 
 // newWSDialer 构造统一的 WebSocket 拨号器（自定义解析、IPv4/IPv6 动态排序、可选 TLS 忽略）

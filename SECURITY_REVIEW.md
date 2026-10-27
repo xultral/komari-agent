@@ -401,10 +401,13 @@ echo '{"disable_web_ssh": false}' > /tmp/test.json
 ### 1. 同步上游代码时的检查清单
 每次同步上游代码后，必须验证：
 - [ ] `terminal/` 目录仍然不存在或为空
+- [ ] `update/` 目录仍然不存在或为空
 - [ ] `server/task.go` 仍然不存在
+- [ ] `server/files.go`、`server/file_stream.go` 仍然不存在
+- [ ] `server/startup_config.go`、`server/switch_version.go` 仍然不存在
 - [ ] `cmd/root.go` 中没有调用 `update.CheckAndUpdate()`
 - [ ] `cmd/root.go` 中 `enforceMonitoringOnlyDefaults()` 仍然存在
-- [ ] `server/websocket.go` 中远程控制消息仍然被忽略
+- [ ] `server/websocket.go` 中远程控制消息、`agent.file` 和未知 v2 方法仍然被忽略
 - [ ] 运行完整测试套件
 
 ### 2. 代码审查关键点
@@ -423,11 +426,15 @@ echo '{"disable_web_ssh": false}' > /tmp/test.json
 
 # 检查危险目录
 ! test -f server/task.go
+! test -f server/files.go
+! test -f server/file_stream.go
 ! test -d terminal/
 
 # 运行测试
 go test ./...
 ```
+
+当前仓库已通过 `security_invariants_test.go` 自动执行上述路径、依赖和导入检查。
 
 ---
 

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+EUID=${EUID:-$(id -u)}
+
 # Color definitions for terminal output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -277,6 +279,14 @@ case $arch in
                 exit 1
                 ;;
         esac
+        ;;
+    loongarch64|loong64)
+        if [ "$os_name" = "linux" ]; then
+            arch="loong64"
+        else
+            log_error "loong64 architecture not supported on $os_name"
+            exit 1
+        fi
         ;;
     *)
         log_error "Unsupported architecture: $arch on $os_name"

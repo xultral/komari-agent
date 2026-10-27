@@ -14,6 +14,10 @@ func TestProcessV2EventIgnoresRemoteMethodsInMonitoringOnlyMode(t *testing.T) {
 		{name: "exec", method: v2.MethodAgentExec},
 		{name: "ping", method: v2.MethodAgentPing},
 		{name: "terminal", method: v2.MethodAgentTerminal},
+		{name: "file", method: "agent.file"},
+		{name: "startup-config", method: "agent.startupConfig"},
+		{name: "switch-version", method: "agent.switchVersion"},
+		{name: "unknown-future-method", method: "agent.futureSensitiveOperation"},
 	}
 
 	for _, tt := range tests {

@@ -14,6 +14,30 @@
 
 目标是让 agent 只做探针该做的事，不再承担远程控制面。
 
+## 2026-10-27 上游同步状态
+
+本轮同步基于上游 `upstream/main`（`ddbdbdc`，稳定版线 `1.5.11`），只吸收监控采集、
+构建兼容性和安全清理，不整体合并上游分支。
+
+已同步：
+
+- CPU、网络采样和报告 JSON 编码优化
+- Linux LXC uptime、Android FUSE 磁盘、macOS `nullfs` 去重
+- AMD GPU sysfs 回退和 Windows NVIDIA 详细 GPU 监控
+- netstatic 统计文件不可写时的警告
+- `loong64` 构建、Docker `COPY --chmod`、GitHub Actions 使用 `go.mod` 指定 Go 版本
+
+明确不引入：
+
+- `server/files*.go`、`server/file_stream*.go` 及 `agent.file`
+- `server/task.go` 中的远程命令执行和 ping
+- `terminal/`、`update/`、版本切换和自动更新
+- `server/startup_config.go` 的上报完整启动配置能力
+- 上游安装脚本中的第三方 GitHub 镜像自动回退
+
+`security_invariants_test.go` 会在运行测试时阻止上述危险目录、文件、依赖和事件处理
+重新进入仓库。v2 事件分发默认拒绝未识别的方法，避免未来上游新增事件时被误执行。
+
 ## 与官方版的核心差异
 
 ### 1. 运行模式
